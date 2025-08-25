@@ -1,0 +1,1 @@
+// Contenido para Boton.js (por favor, reemplaza con tu código)

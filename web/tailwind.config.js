@@ -1,0 +1,1 @@
+// Contenido para tailwind.config.js (por favor, reemplaza con tu código)

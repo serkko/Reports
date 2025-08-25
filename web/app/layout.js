@@ -1,0 +1,1 @@
+// Contenido para layout.js (por favor, reemplaza con tu código)

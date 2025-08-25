@@ -1,0 +1,1 @@
+// Contenido para page.js (por favor, reemplaza con tu código)
