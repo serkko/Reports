@@ -7,10 +7,13 @@ from pathlib import Path
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image, Table, TableStyle
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.utils import ImageReader
 from reportlab.lib.colors import HexColor
+from reportlab.lib.utils import ImageReader
+from reportlab.lib.units import inch
+from reportlab.lib.colors import black
 from PyPDF2 import PdfMerger, PdfReader, PdfWriter
 from reportlab.pdfgen import canvas
 try:
@@ -25,7 +28,26 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-def create_report_pdf(order_number: str, transaction_type: str, verification_status: str, required_files: dict, uploaded_files_dict: dict, temp_dir: Path) -> Path:
+REQUIRED_FILES = {
+    "buy": {
+        "user_profile": "Perfil del Usuario",
+        "bank_evidence": "Datos Bancarios Usuario",
+        "titularity_proof": "Prueba de Titularidad",
+        "user_payment_proof": "Comprobante Bancario",
+        "user_chat": "Chat del Usuario",
+        "binance_report": "Informe de Binance"
+    },
+    "sell": {
+        "bank_evidence": "Comprobante Bancario",
+        "user_payment_proof": "Comprobante de Pago del Usuario",
+        "user_chat": "Chat del Usuario",
+        "titularity_proof": "Prueba de Titularidad",
+        "user_profile": "Perfil del Usuario",
+        "binance_report": "Informe de Binance"
+    }
+}
+
+def create_report_pdf(order_number: str, transaction_type: str, verification_status: str, uploaded_files_dict: dict, required_files: dict, temp_dir: Path) -> Path:
     logging.info(f"Generando informe PDF para la orden {order_number}...")
     
     pdf_buffer = io.BytesIO()
@@ -77,8 +99,8 @@ def create_report_pdf(order_number: str, transaction_type: str, verification_sta
     elements.append(Spacer(1, 0.3 * inch))
     
     for key, file_info in uploaded_files_dict.items():
-        file_name = f"{required_files[key]}.{file_info['content_type'].split('/')[-1]}"
-        elements.append(Paragraph(f"<b>Documento:</b> {required_files[key]}", header_style))
+        file_name = f"{required_files[transaction_type][key]}.{file_info['content_type'].split('/')[-1]}"
+        elements.append(Paragraph(f"<b>Documento:</b> {required_files[transaction_type][key]}", header_style))
         
         file_path = temp_dir / file_name
         with open(file_path, 'wb') as f:
@@ -90,15 +112,16 @@ def create_report_pdf(order_number: str, transaction_type: str, verification_sta
             try:
                 img = PilImage.open(file_path)
                 img_width, img_height = img.size
-                page_width, page_height = letter
-                
-                max_width = page_width - 1.5 * inch
-                max_height = page_height - 1.5 * inch
-                
-                ratio = min(max_width / img_width, max_height / img_height)
+
+                # Tamaño máximo moderado para la vista previa (por ejemplo, 4x4 pulgadas)
+                max_width = 4 * inch
+                max_height = 4 * inch
+
+                # Mantener relación de aspecto
+                ratio = min(max_width / img_width, max_height / img_height, 1.0)
                 new_width = img_width * ratio
                 new_height = img_height * ratio
-                
+
                 elements.append(Image(file_path, width=new_width, height=new_height))
             except Exception as e:
                 logging.error(f"Error al procesar la imagen {file_name}: {e}")
@@ -116,7 +139,7 @@ def create_report_pdf(order_number: str, transaction_type: str, verification_sta
     final_pdf_path = temp_dir / f"Informe_{order_number}.pdf"
     with open(final_pdf_path, 'wb') as f:
         f.write(pdf_buffer.read())
-        
+    
     return final_pdf_path
 
 def create_zip_package(order_number: str, temp_dir: Path) -> Path:
@@ -125,6 +148,9 @@ def create_zip_package(order_number: str, temp_dir: Path) -> Path:
     
     with zipfile.ZipFile(zip_path, 'w') as zf:
         for file in temp_dir.glob('*'):
+            # Evita incluir el propio ZIP en el ZIP
+            if file == zip_path:
+                continue
             zf.write(file, arcname=file.name)
             
     return zip_path
@@ -144,7 +170,7 @@ def cleanup_files(temp_dir: Path):
     logging.info(f"Iniciando la limpieza del directorio temporal: {temp_dir}")
     try:
         import time
-        time.sleep(10)
+        time.sleep(100)
         if temp_dir.exists():
             for item in temp_dir.iterdir():
                 if item.is_file():
